@@ -1,11 +1,11 @@
-Nom,Prénom,Entreprise
-Dupont,Marie,Acme Corporation
-Martin,Jean,Tech Solutions
-Bernard,Sophie,Innovation Lab
-Durand,Pierre,Digital Agency
-Lefebvre,Claire,Startup Inc
-Moreau,Thomas,Cloud Services
-Laurent,Emma,Design Studio
-Simon,Lucas,Marketing Pro
-Michel,Julie,Finance Group
-Garcia,Alexandre,Consulting Firm
+Nom,Prénom,Entreprise,Email
+Dupont,Marie,Acme Corporation,marie.dupont@acme.com
+Martin,Jean,Tech Solutions,jean.martin@techsol.fr
+Bernard,Sophie,Innovation Lab,sophie.bernard@innovlab.com
+Durand,Pierre,Digital Agency,pierre.durand@digital.fr
+Lefebvre,Claire,Startup Inc,claire.lefebvre@startup.io
+Moreau,Thomas,Cloud Services,thomas.moreau@cloud.com
+Laurent,Emma,Design Studio,emma.laurent@design.fr
+Simon,Lucas,Marketing Pro,lucas.simon@marketpro.com
+Michel,Julie,Finance Group,julie.michel@finance.fr
+Garcia,Alexandre,Consulting Firm,alexandre.garcia@consult.com

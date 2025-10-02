@@ -5,6 +5,18 @@ export interface ParticipantData {
   firstName: string;
   lastName: string;
   company: string;
+  email?: string;
+}
+
+export async function generateDeterministicId(
+  firstName: string,
+  lastName: string,
+  email: string,
+  eventSecretKey: string
+): Promise<string> {
+  const uniqueString = `${email.toLowerCase().trim()}|${firstName.trim()}|${lastName.trim()}`;
+  const hash = await generateHMAC(uniqueString, eventSecretKey);
+  return hash.substring(0, 32);
 }
 
 export async function generateSignedQRCode(

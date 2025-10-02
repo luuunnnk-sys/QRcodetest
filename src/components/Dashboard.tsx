@@ -3,7 +3,7 @@ import { Upload, Users, QrCode, Download, Trash2 } from 'lucide-react';
 import { useEvent } from '../contexts/EventContext';
 import { localDB, Participant as DBParticipant } from '../lib/local-storage';
 import { parseFile } from '../lib/csv-parser';
-import { generateSignedQRCode } from '../lib/qrcode';
+import { generateSignedQRCode, generateDeterministicId } from '../lib/qrcode';
 import { generateBadgePDF } from '../lib/badge-generator';
 
 interface Participant {
@@ -11,6 +11,7 @@ interface Participant {
   first_name: string;
   last_name: string;
   company: string;
+  email: string;
   qr_code_data: string;
 }
 
@@ -52,32 +53,52 @@ export function Dashboard() {
     try {
       const importedData = await parseFile(file);
 
-      const participantsToInsert = await Promise.all(
-        importedData.map(async (p) => {
-          const id = crypto.randomUUID();
-          const qrData = await generateSignedQRCode(
-            {
-              id,
-              firstName: p.firstName,
-              lastName: p.lastName,
-              company: p.company,
-            },
-            currentEvent.secret_key
-          );
+      const existingParticipants = await localDB.getParticipantsByEvent(currentEvent.id);
+      const existingEmails = new Set(existingParticipants.map(p => p.email.toLowerCase()));
 
-          return {
-            id,
-            event_id: currentEvent.id,
-            first_name: p.firstName,
-            last_name: p.lastName,
-            company: p.company,
-            qr_code_data: qrData,
-            created_at: new Date().toISOString(),
-          };
-        })
+      const participantsToInsert = await Promise.all(
+        importedData
+          .filter(p => !existingEmails.has(p.email.toLowerCase()))
+          .map(async (p) => {
+            const id = await generateDeterministicId(
+              p.firstName,
+              p.lastName,
+              p.email,
+              currentEvent.secret_key
+            );
+
+            const qrData = await generateSignedQRCode(
+              {
+                id,
+                firstName: p.firstName,
+                lastName: p.lastName,
+                company: p.company,
+                email: p.email,
+              },
+              currentEvent.secret_key
+            );
+
+            return {
+              id,
+              event_id: currentEvent.id,
+              first_name: p.firstName,
+              last_name: p.lastName,
+              company: p.company,
+              email: p.email,
+              qr_code_data: qrData,
+              created_at: new Date().toISOString(),
+            };
+          })
       );
 
-      await localDB.addParticipants(participantsToInsert as DBParticipant[]);
+      if (participantsToInsert.length > 0) {
+        await localDB.addParticipants(participantsToInsert as DBParticipant[]);
+      }
+
+      const skippedCount = importedData.length - participantsToInsert.length;
+      if (skippedCount > 0) {
+        alert(`${participantsToInsert.length} participant(s) ajouté(s). ${skippedCount} doublon(s) ignoré(s).`);
+      }
 
       await loadParticipants();
     } catch (err: any) {
@@ -260,6 +281,9 @@ export function Dashboard() {
                       Prénom
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
+                      Email
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
                       Entreprise
                     </th>
                   </tr>
@@ -272,6 +296,9 @@ export function Dashboard() {
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-900 dark:text-white">
                         {p.first_name}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
+                        {p.email}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-400">
                         {p.company || '-'}

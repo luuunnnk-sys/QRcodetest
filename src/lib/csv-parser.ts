@@ -5,6 +5,7 @@ export interface ImportedParticipant {
   firstName: string;
   lastName: string;
   company: string;
+  email: string;
 }
 
 export async function parseCSV(file: File): Promise<ImportedParticipant[]> {
@@ -19,15 +20,21 @@ export async function parseCSV(file: File): Promise<ImportedParticipant[]> {
             const firstName = row['prénom'] || row['prenom'] || row['first name'] || row['firstname'] || '';
             const lastName = row['nom'] || row['last name'] || row['lastname'] || '';
             const company = row['entreprise'] || row['company'] || row['société'] || row['societe'] || '';
+            const email = row['email'] || row['e-mail'] || row['mail'] || '';
 
             if (!firstName || !lastName) {
               throw new Error('Colonnes requises manquantes: Prénom et Nom');
+            }
+
+            if (!email) {
+              throw new Error('Colonne Email requise pour garantir l\'unicité des participants');
             }
 
             return {
               firstName: firstName.trim(),
               lastName: lastName.trim(),
               company: company.trim(),
+              email: email.trim().toLowerCase(),
             };
           });
 
@@ -78,15 +85,25 @@ export async function parseExcel(file: File): Promise<ImportedParticipant[]> {
             values['société'] ||
             values['societe'] ||
             '';
+          const email =
+            values['email'] ||
+            values['e-mail'] ||
+            values['mail'] ||
+            '';
 
           if (!firstName || !lastName) {
             throw new Error('Colonnes requises manquantes: Prénom et Nom');
+          }
+
+          if (!email) {
+            throw new Error('Colonne Email requise pour garantir l\'unicité des participants');
           }
 
           return {
             firstName: String(firstName).trim(),
             lastName: String(lastName).trim(),
             company: String(company).trim(),
+            email: String(email).trim().toLowerCase(),
           };
         });
 

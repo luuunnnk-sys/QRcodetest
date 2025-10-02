@@ -17,6 +17,7 @@ export interface Participant {
   first_name: string;
   last_name: string;
   company: string;
+  email: string;
   qr_code_data: string;
   created_at: string;
 }
