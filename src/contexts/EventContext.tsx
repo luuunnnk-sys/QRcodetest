@@ -38,16 +38,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
     try {
       const savedEventId = localStorage.getItem('currentEventId');
       if (savedEventId) {
-        const { data: event, error } = await supabase
-          .from('events')
-          .select('*')
-          .eq('id', savedEventId)
-          .maybeSingle();
-
-        if (error) {
-          console.error('Error loading event:', error);
-        } else if (event) {
-          setCurrentEvent(event as Event);
+        const savedEvent = localStorage.getItem(`event_${savedEventId}`);
+        if (savedEvent) {
+          setCurrentEvent(JSON.parse(savedEvent));
         }
       }
     } catch (error) {
@@ -62,7 +55,9 @@ export function EventProvider({ children }: { children: ReactNode }) {
     description?: string
   ): Promise<Event> {
     const now = new Date().toISOString();
-    const eventData = {
+    const eventId = crypto.randomUUID();
+    const event: Event = {
+      id: eventId,
       name,
       description: description || null,
       logo_url: null,
@@ -71,17 +66,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
       updated_at: now,
     };
 
-    const { data, error } = await supabase
-      .from('events')
-      .insert([eventData])
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Erreur lors de la création de l'événement: ${error.message}`);
-    }
-
-    const event = data as Event;
+    localStorage.setItem(`event_${eventId}`, JSON.stringify(event));
     setCurrentEvent(event);
     localStorage.setItem('currentEventId', event.id);
     return event;

@@ -45,27 +45,14 @@ export function History() {
 
     setLoading(true);
     try {
-      const { data: checkInsData, error } = await supabase
-        .from('check_ins')
-        .select(`
-          id,
-          checked_in_at,
-          scanner_name,
-          scanner_email,
-          is_duplicate,
-          participants!inner (
-            first_name,
-            last_name,
-            company,
-            event_id
-          )
-        `)
-        .eq('participants.event_id', currentEvent.id)
-        .order('checked_in_at', { ascending: false });
+      const checkInsStored = localStorage.getItem(`check_ins_${currentEvent.id}`);
+      const checkInsData = checkInsStored ? JSON.parse(checkInsStored) : [];
 
-      if (error) throw error;
+      const participantsStored = localStorage.getItem(`participants_${currentEvent.id}`);
+      const participants = participantsStored ? JSON.parse(participantsStored) : [];
 
-      const formattedData = (checkInsData || []).map((checkIn: any) => {
+      const formattedData = checkInsData.map((checkIn: any) => {
+        const participant = participants.find((p: any) => p.id === checkIn.participant_id);
         return {
           id: checkIn.id,
           checked_in_at: checkIn.checked_in_at,
@@ -73,12 +60,12 @@ export function History() {
           scanner_email: checkIn.scanner_email || null,
           is_duplicate: checkIn.is_duplicate,
           participant: {
-            first_name: checkIn.participants.first_name,
-            last_name: checkIn.participants.last_name,
-            company: checkIn.participants.company,
+            first_name: participant?.first_name || 'Inconnu',
+            last_name: participant?.last_name || '',
+            company: participant?.company || '',
           },
         };
-      });
+      }).sort((a: any, b: any) => new Date(b.checked_in_at).getTime() - new Date(a.checked_in_at).getTime());
 
       setCheckIns(formattedData);
 

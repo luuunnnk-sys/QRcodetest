@@ -32,14 +32,12 @@ export function Dashboard() {
     if (!currentEvent) return;
 
     try {
-      const { data, error } = await supabase
-        .from('participants')
-        .select('*')
-        .eq('event_id', currentEvent.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setParticipants((data as Participant[]) || []);
+      const stored = localStorage.getItem(`participants_${currentEvent.id}`);
+      if (stored) {
+        setParticipants(JSON.parse(stored));
+      } else {
+        setParticipants([]);
+      }
     } catch (err: any) {
       console.error('Error loading participants:', err);
       setError(err.message);
@@ -56,12 +54,10 @@ export function Dashboard() {
     try {
       const importedData = await parseFile(file);
 
-      const { data: existingParticipants } = await supabase
-        .from('participants')
-        .select('email')
-        .eq('event_id', currentEvent.id);
+      const stored = localStorage.getItem(`participants_${currentEvent.id}`);
+      const existingParticipants = stored ? JSON.parse(stored) : [];
 
-      const existingEmails = new Set((existingParticipants || []).map(p => p.email.toLowerCase()));
+      const existingEmails = new Set((existingParticipants || []).map((p: Participant) => p.email.toLowerCase()));
 
       const participantsToInsert = await Promise.all(
         importedData
@@ -99,11 +95,8 @@ export function Dashboard() {
       );
 
       if (participantsToInsert.length > 0) {
-        const { error: insertError } = await supabase
-          .from('participants')
-          .insert(participantsToInsert);
-
-        if (insertError) throw insertError;
+        const updatedParticipants = [...existingParticipants, ...participantsToInsert];
+        localStorage.setItem(`participants_${currentEvent.id}`, JSON.stringify(updatedParticipants));
       }
 
       const skippedCount = importedData.length - participantsToInsert.length;
@@ -158,12 +151,7 @@ export function Dashboard() {
 
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('participants')
-        .delete()
-        .eq('event_id', currentEvent.id);
-
-      if (error) throw error;
+      localStorage.removeItem(`participants_${currentEvent.id}`);
       await loadParticipants();
     } catch (err: any) {
       setError(err.message);

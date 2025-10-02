@@ -99,14 +99,11 @@ export function Scanner() {
       return;
     }
 
-    const { data: existingParticipant, error: participantError } = await supabase
-      .from('participants')
-      .select('*')
-      .eq('qr_code_data', qrData)
-      .eq('event_id', currentEvent.id)
-      .maybeSingle();
+    const stored = localStorage.getItem(`participants_${currentEvent.id}`);
+    const participants = stored ? JSON.parse(stored) : [];
+    const existingParticipant = participants.find((p: any) => p.qr_code_data === qrData);
 
-    if (participantError || !existingParticipant) {
+    if (!existingParticipant) {
       setResult({
         status: 'invalid',
         message: 'Participant non trouvé',
@@ -115,14 +112,12 @@ export function Scanner() {
       return;
     }
 
-    const { data: existingCheckIns } = await supabase
-      .from('check_ins')
-      .select('id')
-      .eq('participant_id', existingParticipant.id);
-
-    const isDuplicate = (existingCheckIns?.length || 0) > 0;
+    const checkInsStored = localStorage.getItem(`check_ins_${currentEvent.id}`);
+    const checkIns = checkInsStored ? JSON.parse(checkInsStored) : [];
+    const isDuplicate = checkIns.some((ci: any) => ci.participant_id === existingParticipant.id);
 
     const checkIn = {
+      id: crypto.randomUUID(),
       participant_id: existingParticipant.id,
       scanner_name: scannerInfo.name,
       scanner_email: scannerInfo.email,
@@ -131,11 +126,8 @@ export function Scanner() {
     };
 
     try {
-      const { error: checkInError } = await supabase
-        .from('check_ins')
-        .insert([checkIn]);
-
-      if (checkInError) throw checkInError;
+      checkIns.push(checkIn);
+      localStorage.setItem(`check_ins_${currentEvent.id}`, JSON.stringify(checkIns));
     } catch (error) {
       setResult({
         status: 'invalid',
