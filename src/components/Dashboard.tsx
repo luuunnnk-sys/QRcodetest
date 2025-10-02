@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Upload, Users, QrCode, Download, Trash2 } from 'lucide-react';
 import { useEvent } from '../contexts/EventContext';
-import { localDB, Participant as DBParticipant } from '../lib/local-storage';
+import { supabase, Participant as SupabaseParticipant } from '../lib/supabase';
 import { parseFile } from '../lib/csv-parser';
 import { generateSignedQRCode, generateDeterministicId } from '../lib/qrcode';
 import { generateBadgePDF } from '../lib/badge-generator';
@@ -32,11 +32,14 @@ export function Dashboard() {
     if (!currentEvent) return;
 
     try {
-      const data = await localDB.getParticipantsByEvent(currentEvent.id);
-      const sorted = data.sort((a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-      setParticipants(sorted as Participant[]);
+      const { data, error } = await supabase
+        .from('participants')
+        .select('*')
+        .eq('event_id', currentEvent.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setParticipants((data as Participant[]) || []);
     } catch (err: any) {
       console.error('Error loading participants:', err);
       setError(err.message);
@@ -53,8 +56,12 @@ export function Dashboard() {
     try {
       const importedData = await parseFile(file);
 
-      const existingParticipants = await localDB.getParticipantsByEvent(currentEvent.id);
-      const existingEmails = new Set(existingParticipants.map(p => p.email.toLowerCase()));
+      const { data: existingParticipants } = await supabase
+        .from('participants')
+        .select('email')
+        .eq('event_id', currentEvent.id);
+
+      const existingEmails = new Set((existingParticipants || []).map(p => p.email.toLowerCase()));
 
       const participantsToInsert = await Promise.all(
         importedData
@@ -92,7 +99,11 @@ export function Dashboard() {
       );
 
       if (participantsToInsert.length > 0) {
-        await localDB.addParticipants(participantsToInsert as DBParticipant[]);
+        const { error: insertError } = await supabase
+          .from('participants')
+          .insert(participantsToInsert);
+
+        if (insertError) throw insertError;
       }
 
       const skippedCount = importedData.length - participantsToInsert.length;
@@ -147,8 +158,13 @@ export function Dashboard() {
 
     setLoading(true);
     try {
-      await localDB.deleteParticipantsByEvent(currentEvent.id);
-      setParticipants([]);
+      const { error } = await supabase
+        .from('participants')
+        .delete()
+        .eq('event_id', currentEvent.id);
+
+      if (error) throw error;
+      await loadParticipants();
     } catch (err: any) {
       setError(err.message);
     } finally {

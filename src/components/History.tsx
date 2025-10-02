@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Clock, Users, CheckCircle, AlertCircle } from 'lucide-react';
 import { useEvent } from '../contexts/EventContext';
-import { localDB } from '../lib/local-storage';
+import { supabase } from '../lib/supabase';
 
 interface CheckIn {
   id: string;
@@ -45,28 +45,27 @@ export function History() {
 
     setLoading(true);
     try {
-      const participants = await localDB.getParticipantsByEvent(currentEvent.id);
+      const { data: checkInsData, error } = await supabase
+        .from('check_ins')
+        .select(`
+          id,
+          checked_in_at,
+          scanner_name,
+          scanner_email,
+          is_duplicate,
+          participants!inner (
+            first_name,
+            last_name,
+            company,
+            event_id
+          )
+        `)
+        .eq('participants.event_id', currentEvent.id)
+        .order('checked_in_at', { ascending: false });
 
-      if (!participants || participants.length === 0) {
-        setCheckIns([]);
-        setStats({ total: 0, valid: 0, duplicates: 0 });
-        setLoading(false);
-        return;
-      }
+      if (error) throw error;
 
-      const allCheckIns = await localDB.getCheckIns();
-      const participantIds = new Set(participants.map((p) => p.id));
-
-      const eventCheckIns = allCheckIns
-        .filter((c) => participantIds.has(c.participant_id))
-        .sort((a, b) =>
-          new Date(b.checked_in_at).getTime() - new Date(a.checked_in_at).getTime()
-        );
-
-      const participantMap = new Map(participants.map((p) => [p.id, p]));
-
-      const formattedData = eventCheckIns.map((checkIn) => {
-        const participant = participantMap.get(checkIn.participant_id)!;
+      const formattedData = (checkInsData || []).map((checkIn: any) => {
         return {
           id: checkIn.id,
           checked_in_at: checkIn.checked_in_at,
@@ -74,9 +73,9 @@ export function History() {
           scanner_email: checkIn.scanner_email || null,
           is_duplicate: checkIn.is_duplicate,
           participant: {
-            first_name: participant.first_name,
-            last_name: participant.last_name,
-            company: participant.company,
+            first_name: checkIn.participants.first_name,
+            last_name: checkIn.participants.last_name,
+            company: checkIn.participants.company,
           },
         };
       });

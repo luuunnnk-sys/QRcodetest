@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { localDB, Event as DBEvent } from '../lib/local-storage';
+import { supabase, Event as SupabaseEvent } from '../lib/supabase';
 
 interface Event {
   id: string;
@@ -20,10 +20,6 @@ interface EventContextType {
 
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
-function generateId(): string {
-  return crypto.randomUUID();
-}
-
 function generateSecretKey(): string {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
@@ -40,11 +36,17 @@ export function EventProvider({ children }: { children: ReactNode }) {
 
   async function loadEvent() {
     try {
-      await localDB.init();
       const savedEventId = localStorage.getItem('currentEventId');
       if (savedEventId) {
-        const event = await localDB.getEvent(savedEventId);
-        if (event) {
+        const { data: event, error } = await supabase
+          .from('events')
+          .select('*')
+          .eq('id', savedEventId)
+          .maybeSingle();
+
+        if (error) {
+          console.error('Error loading event:', error);
+        } else if (event) {
           setCurrentEvent(event as Event);
         }
       }
@@ -60,20 +62,29 @@ export function EventProvider({ children }: { children: ReactNode }) {
     description?: string
   ): Promise<Event> {
     const now = new Date().toISOString();
-    const event: DBEvent = {
-      id: generateId(),
+    const eventData = {
       name,
-      description: description || undefined,
-      logo_url: undefined,
+      description: description || null,
+      logo_url: null,
       secret_key: generateSecretKey(),
       created_at: now,
       updated_at: now,
     };
 
-    await localDB.addEvent(event);
-    setCurrentEvent(event as Event);
+    const { data, error } = await supabase
+      .from('events')
+      .insert([eventData])
+      .select()
+      .single();
+
+    if (error) {
+      throw new Error(`Erreur lors de la création de l'événement: ${error.message}`);
+    }
+
+    const event = data as Event;
+    setCurrentEvent(event);
     localStorage.setItem('currentEventId', event.id);
-    return event as Event;
+    return event;
   }
 
   const handleSetCurrentEvent = (event: Event | null) => {

@@ -5,7 +5,7 @@ import { CheckCircle2, XCircle, AlertCircle, Camera } from 'lucide-react';
 import { useEvent } from '../contexts/EventContext';
 import { useScanner } from '../contexts/ScannerContext';
 import { verifyQRCode, ParticipantData } from '../lib/qrcode';
-import { localDB, CheckIn } from '../lib/local-storage';
+import { supabase } from '../lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type ScanStatus = 'idle' | 'success' | 'duplicate' | 'invalid';
@@ -99,9 +99,14 @@ export function Scanner() {
       return;
     }
 
-    const existingParticipant = await localDB.getParticipantByQRCode(qrData);
+    const { data: existingParticipant, error: participantError } = await supabase
+      .from('participants')
+      .select('*')
+      .eq('qr_code_data', qrData)
+      .eq('event_id', currentEvent.id)
+      .maybeSingle();
 
-    if (!existingParticipant || existingParticipant.event_id !== currentEvent.id) {
+    if (participantError || !existingParticipant) {
       setResult({
         status: 'invalid',
         message: 'Participant non trouvé',
@@ -110,11 +115,14 @@ export function Scanner() {
       return;
     }
 
-    const existingCheckIns = await localDB.getCheckInsByParticipant(existingParticipant.id);
-    const isDuplicate = existingCheckIns.length > 0;
+    const { data: existingCheckIns } = await supabase
+      .from('check_ins')
+      .select('id')
+      .eq('participant_id', existingParticipant.id);
 
-    const checkIn: CheckIn = {
-      id: crypto.randomUUID(),
+    const isDuplicate = (existingCheckIns?.length || 0) > 0;
+
+    const checkIn = {
       participant_id: existingParticipant.id,
       scanner_name: scannerInfo.name,
       scanner_email: scannerInfo.email,
@@ -123,7 +131,11 @@ export function Scanner() {
     };
 
     try {
-      await localDB.addCheckIn(checkIn);
+      const { error: checkInError } = await supabase
+        .from('check_ins')
+        .insert([checkIn]);
+
+      if (checkInError) throw checkInError;
     } catch (error) {
       setResult({
         status: 'invalid',
